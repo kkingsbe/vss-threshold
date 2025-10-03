@@ -346,7 +346,7 @@ export default function VSSDemo() {
   useEffect(() => { drawBlank(); }, []);
 
   return (
-      <div className="h-screen w-full flex flex-col p-2 sm:p-3 lg:p-4 gap-2 sm:gap-3 lg:gap-4 overflow-hidden">
+      <div className="min-h-screen min-h-[100svh] h-[100dvh] w-full flex flex-col p-2 sm:p-3 lg:p-4 gap-2 sm:gap-3 lg:gap-4 overflow-hidden">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 flex-shrink-0">
           <div className="flex-1 min-w-0">
@@ -469,7 +469,7 @@ export default function VSSDemo() {
         {/* Left Column: Canvas with centered interval number overlay */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Canvas Area - Takes most space */}
-          <div className="relative flex-1 min-h-[300px] sm:min-h-[400px] lg:min-h-0 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-lg bg-white dark:bg-gray-900">
+          <div className="relative flex-1 min-h-[300px] sm:min-h-[400px] lg:min-h-0 max-h-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-lg bg-white dark:bg-gray-900">
             <canvas ref={canvasRef} className="w-full h-full block" />
 
             {/* Centered Interval Number Overlay */}
