@@ -45,7 +45,7 @@ export const VSSInstructionsModal: React.FC<VSSInstructionsModalProps> = ({
             </div>
 
             <p className="text-sm text-gray-600 dark:text-gray-400 italic">
-              The noise will become harder to see as you answer correctly. Try your best, but it's okay to guess if you're unsure.
+              The noise will become harder to see as you answer correctly. Try your best, but it&apos;s okay to guess if you&apos;re unsure.
             </p>
           </div>
 
