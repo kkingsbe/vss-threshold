@@ -50,11 +50,12 @@ export const useVSSExperiment = (
   const [correctInterval, setCorrectInterval] = useState<1 | 2 | null>(null);
   const [stats, setStats] = useState<ExperimentStats>({ correct: 0, incorrect: 0 });
 
-  // Simple staircase params (hidden from UI for minimalism)
+  // 2-down/1-up staircase params
   const [contrastPct, setContrastPct] = useState(20); // current level (%), 1..100
   const STEP_PCT = 5; // fixed step size
   const [reversals, setReversals] = useState<number[]>([]);
   const lastDirRef = useRef<number | null>(null); // -1 down (harder), +1 up (easier)
+  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0); // for 2-down/1-up
 
   const [showResponsePrompt, setShowResponsePrompt] = useState(false);
   const [currentInterval, setCurrentInterval] = useState<1 | 2 | null>(null);
@@ -195,6 +196,7 @@ export const useVSSExperiment = (
     setStopReason(null);
     setContrastPct(20);
     lastDirRef.current = null;
+    setConsecutiveCorrect(0); // reset for 2-down/1-up
     drawBlank();
     await present2AFC();
   }, [drawBlank, present2AFC, running]);
@@ -215,13 +217,36 @@ export const useVSSExperiment = (
 
     setShowResponsePrompt(false);
 
-    const dir = correct ? -1 : +1; // go harder on correct, easier on wrong
-    if (lastDirRef.current !== null && lastDirRef.current !== dir) {
-      setReversals((r) => [...r, contrastPct]);
+    // 2-down/1-up staircase logic
+    let dir: number | null = null;
+    let newConsecutiveCorrect = consecutiveCorrect;
+    
+    if (correct) {
+      newConsecutiveCorrect = consecutiveCorrect + 1;
+      if (newConsecutiveCorrect >= 2) {
+        // After 2 consecutive correct: make harder (decrease contrast)
+        dir = -1;
+        newConsecutiveCorrect = 0;
+      }
+    } else {
+      // After 1 incorrect: make easier (increase contrast)
+      dir = +1;
+      newConsecutiveCorrect = 0;
     }
-    lastDirRef.current = dir;
-    const next = clamp(contrastPct + dir * 5, 1, 100);
-    setContrastPct(next);
+
+    setConsecutiveCorrect(newConsecutiveCorrect);
+
+    // Only update contrast and check reversals if we're making a change
+    let next = contrastPct;
+    if (dir !== null) {
+      if (lastDirRef.current !== null && lastDirRef.current !== dir) {
+        setReversals((r) => [...r, contrastPct]);
+      }
+      lastDirRef.current = dir;
+      next = clamp(contrastPct + dir * STEP_PCT, 1, 100);
+      setContrastPct(next);
+    }
+
     setAwaitingResponse(false);
 
     const shouldStopByTrials = (prevTrialNum => prevTrialNum + 1 >= MAX_TRIALS)(trialNum);
@@ -240,7 +265,7 @@ export const useVSSExperiment = (
       setStopReason(reason);
       setShowCompletionModal(true);
     }
-  }, [awaitingResponse, correctInterval, contrastPct, drawBlank, present2AFC, reversals, running, trialNum]);
+  }, [awaitingResponse, correctInterval, contrastPct, consecutiveCorrect, drawBlank, present2AFC, reversals, running, trialNum, STEP_PCT]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

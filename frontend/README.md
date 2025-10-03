@@ -1,15 +1,3 @@
-Got it — thanks for clarifying. You’re asking for a **consolidated markdown document** that captures the *initial background research I did at the start of our work together* — specifically about:
-
-* How visual snow has been tested in psychophysics studies.
-* Why we chose a “snow-like” dynamic noise pattern.
-* The reasoning behind interval length (e.g., 500 ms, 2 s, 4 s) and separators.
-* How long exposure influences detection (adaptation effects).
-* General design principles from published experiments that shaped the app.
-
-Here’s a structured document you can keep:
-
----
-
 # Visual Snow Syndrome: Experimental Basis for Threshold Testing
 
 ## 1. Why Use Dynamic Noise Patterns?
@@ -74,12 +62,12 @@ Research into VSS shows that patients often have:
 
 ## 5. Staircase Logic
 
-* **1-up/1-down staircase** is the simplest form:
+* **2-down/1-up staircase** is used in this implementation:
 
-  * Correct → lower contrast.
-  * Incorrect → raise contrast.
-* This method converges around ~70% accuracy.
-* More advanced versions (e.g., **2-down/1-up**, interleaved staircases) give tighter estimates.
+  * 2 consecutive correct → lower contrast (make harder).
+  * 1 incorrect → raise contrast (make easier).
+* This method converges around **~70.7% accuracy**, providing more reliable threshold estimates than 1-up/1-down.
+* This is a standard approach in psychophysics for estimating detection thresholds.
 
 ---
 
@@ -97,7 +85,3 @@ Research into VSS shows that patients often have:
 * Coarse step size (5%).
 * Few reversals → noisier estimate.
 * Single temporal frequency (15 Hz) — VSS sensitivity may vary across frequencies.
-
----
-
-Do you want me to also include a **diagram mockup** of the full trial sequence (Interval 1 → mask → Interval 2 → response) so you’d have a visual to go with this doc? That would make it clearer for sharing with others.
