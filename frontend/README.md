@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Got it — thanks for clarifying. You’re asking for a **consolidated markdown document** that captures the *initial background research I did at the start of our work together* — specifically about:
 
-## Getting Started
+* How visual snow has been tested in psychophysics studies.
+* Why we chose a “snow-like” dynamic noise pattern.
+* The reasoning behind interval length (e.g., 500 ms, 2 s, 4 s) and separators.
+* How long exposure influences detection (adaptation effects).
+* General design principles from published experiments that shaped the app.
 
-First, run the development server:
+Here’s a structured document you can keep:
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# Visual Snow Syndrome: Experimental Basis for Threshold Testing
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 1. Why Use Dynamic Noise Patterns?
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Research into VSS shows that patients often have:
 
-## Learn More
+* **Increased sensitivity** to temporally varying (flickering) patterns.
+* Most robust differences appear for **dynamic random-noise fields** (similar to “TV static”), especially at **temporal frequencies around 10–15 Hz**.
+* By presenting external noise, we can probe how faint the stimulus can be before detection drops to chance — a proxy for how sensitive the visual system is to snow-like signals.
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 2. Stimulus Parameters
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Spatial Scale
 
-## Deploy on Vercel
+* Typical experiments use **small dots/blocks** (1–3 px at normal viewing distance) to approximate fine-grain snow.
+* In our demo, we set block size to ~2 px — consistent with psychophysics norms.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Temporal Frequency
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+* Studies show that VSS differences peak in the **10–15 Hz flicker range**.
+* This is why we locked the app to **15 Hz frame updates** for the noise.
+
+### Contrast
+
+* The only adaptive variable.
+* Staircases adjust the **contrast (%)** of the noise relative to background, estimating the lowest level detectable above chance.
+
+---
+
+## 3. Interval Design
+
+### Why Two-Interval Forced Choice (2IFC)?
+
+* Forces the participant to pick an interval, even if unsure.
+* Removes bias from “criterion shifts” (e.g., a tendency to say “yes” more often).
+* Guessing is expected, but across trials the staircase converges on the point where the signal is *just strong enough* to drive accuracy above chance (~75% correct).
+
+### Duration
+
+* Published experiments often use **short intervals (300–600 ms)** to prevent visual adaptation and to keep working memory load low.
+* We chose **500 ms** as a balance: long enough to see the pattern, but short enough to avoid adaptation.
+
+### Separation Between Intervals
+
+* A **mask or flash** is typically inserted to reset perception and prevent afterimages.
+* We used a **200 ms gray flash + 100 ms blank** to give a strong perceptual separator.
+
+---
+
+## 4. Adaptation & Exposure Effects
+
+* **Prolonged viewing** (30–60 s of high-contrast static) can temporarily reduce subjective snow for some VSS patients.
+* This effect decays over minutes but demonstrates that **exposure length changes detectability**.
+* In threshold tasks:
+
+  * **Short intervals (≤600 ms)** avoid adaptation, ensuring thresholds measure sensitivity, not fatigue.
+  * **Longer exposures (2–4 s)** may artificially lower detectability by adapting the visual system.
+
+---
+
+## 5. Staircase Logic
+
+* **1-up/1-down staircase** is the simplest form:
+
+  * Correct → lower contrast.
+  * Incorrect → raise contrast.
+* This method converges around ~70% accuracy.
+* More advanced versions (e.g., **2-down/1-up**, interleaved staircases) give tighter estimates.
+
+---
+
+## 6. What the Threshold Means
+
+* **Threshold (e.g., 5%)** = the contrast at which the participant can detect snow reliably above chance.
+* **Healthy controls**: usually ~15–30% in this kind of demo.
+* **VSS participants**: often single-digit thresholds, reflecting heightened sensitivity to faint noise.
+
+---
+
+## 7. Limitations of the Prototype
+
+* Not luminance-calibrated → percentages are relative, not absolute.
+* Coarse step size (5%).
+* Few reversals → noisier estimate.
+* Single temporal frequency (15 Hz) — VSS sensitivity may vary across frequencies.
+
+---
+
+Do you want me to also include a **diagram mockup** of the full trial sequence (Interval 1 → mask → Interval 2 → response) so you’d have a visual to go with this doc? That would make it clearer for sharing with others.
