@@ -6,6 +6,7 @@ import { useFullscreen } from "../hooks/useFullscreen";
 import { VSSHeader } from "./VSSHeader";
 import { VSSResponsePrompt } from "./VSSResponsePrompt";
 import { VSSCompletionModal } from "./VSSCompletionModal";
+import { VSSInstructionsModal } from "./VSSInstructionsModal";
 import { VSSCanvas } from "./VSSCanvas";
 import { VSSStatusGrid } from "./VSSStatusGrid";
 import { VSSTips } from "./VSSTips";
@@ -23,8 +24,10 @@ export const VSSDemo: React.FC = () => {
     estThreshold,
     showResponsePrompt,
     showCompletionModal,
+    showInstructionsModal,
     stopReason,
     start,
+    startExperiment,
     stop,
     handleResponse,
     setShowCompletionModal,
@@ -43,6 +46,11 @@ export const VSSDemo: React.FC = () => {
       />
 
       <div className="relative flex-1 flex flex-col lg:flex-row gap-2 sm:gap-3 lg:gap-4 min-h-0">
+        <VSSInstructionsModal
+          visible={showInstructionsModal}
+          onStart={() => void startExperiment()}
+        />
+
         <VSSCompletionModal
           visible={showCompletionModal}
           stopReason={stopReason}

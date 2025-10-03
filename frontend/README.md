@@ -5,7 +5,7 @@
 Research into VSS shows that patients often have:
 
 * **Increased sensitivity** to temporally varying (flickering) patterns.
-* Most robust differences appear for **dynamic random-noise fields** (similar to “TV static”), especially at **temporal frequencies around 10–15 Hz**.
+* Most robust differences appear for **dynamic random-noise fields** (similar to "TV static"), especially at **temporal frequencies around 10–15 Hz**.
 * By presenting external noise, we can probe how faint the stimulus can be before detection drops to chance — a proxy for how sensitive the visual system is to snow-like signals.
 
 ---
@@ -34,18 +34,18 @@ Research into VSS shows that patients often have:
 ### Why Two-Interval Forced Choice (2IFC)?
 
 * Forces the participant to pick an interval, even if unsure.
-* Removes bias from “criterion shifts” (e.g., a tendency to say “yes” more often).
+* Removes bias from "criterion shifts" (e.g., a tendency to say "yes" more often).
 * Guessing is expected, but across trials the staircase converges on the point where the signal is *just strong enough* to drive accuracy above chance (~75% correct).
 
 ### Duration
 
 * Published experiments often use **short intervals (300–600 ms)** to prevent visual adaptation and to keep working memory load low.
-* We chose **500 ms** as a balance: long enough to see the pattern, but short enough to avoid adaptation.
+* We use **jittered 400–600 ms intervals**: long enough to see the pattern, but short enough to avoid adaptation.
 
 ### Separation Between Intervals
 
-* A **mask or flash** is typically inserted to reset perception and prevent afterimages.
-* We used a **200 ms gray flash + 100 ms blank** to give a strong perceptual separator.
+* A **mid-gray blank (300 ms)** provides temporal separation and prevents afterimages.
+* Simple blank is preferred over pattern masks to avoid introducing afterimage artifacts.
 
 ---
 
@@ -79,9 +79,44 @@ Research into VSS shows that patients often have:
 
 ---
 
-## 7. Limitations of the Prototype
+## 7. Recent Improvements (v2)
+
+### Fixed Mean Luminance
+* Noise now uses **zero-mean modulation** around mid-gray (127.5) instead of unipolar [0, 255].
+* This eliminates brightness cues — both intervals have identical mean luminance.
+
+### Mid-Gray Background
+* All frames (blank, intervals, fixation) use **mid-gray (RGB 127, 127, 127)** instead of white.
+* Prevents participants from using "overall brightness" as a detection strategy.
+
+### Unified Interval Markers
+* Both intervals use the **same neutral fixation point** (dark gray dot).
+* **Removed large colored 1/2 badges** during stimulus presentation to eliminate visual differences.
+* Intervals are now perceptually identical except for the presence/absence of noise.
+* Fixation dot is **always visible** (drawn on top of noise) to maintain a consistent focus point.
+
+### Jittered Timing
+* **Interval duration**: randomized 400–600 ms per trial.
+* **ISI duration**: randomized 250–450 ms per trial.
+* Reduces predictability and temporal cueing strategies.
+
+### Adaptive Step Size
+* Step size **starts at 6%** for rapid initial convergence.
+* **Shrinks to 4%** after 2 reversals.
+* **Shrinks to 2%** after 4 reversals for fine-grained threshold estimation.
+* Provides faster convergence early on, with precision when near threshold.
+
+### Immediate Stimulus Onset
+* Noise appears **immediately at interval onset** (no pre-noise delay).
+* First frame rendered at t=0, then continues at 15 Hz.
+* **No temporal ramping** — abrupt onset/offset to maintain strict mean luminance equality.
+* Temporal ramps were found to introduce subtle brightness cues at low contrasts due to clipping artifacts.
+
+---
+
+## 8. Remaining Limitations
 
 * Not luminance-calibrated → percentages are relative, not absolute.
-* Coarse step size (5%).
-* Few reversals → noisier estimate.
+* Few reversals → estimate can still be noisy with high between-session variability.
 * Single temporal frequency (15 Hz) — VSS sensitivity may vary across frequencies.
+* Abrupt onsets may be slightly more detectable than ramped stimuli, but necessary to avoid brightness confounds.

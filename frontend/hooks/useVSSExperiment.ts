@@ -21,27 +21,33 @@ export interface UseVSSExperimentResult {
   estThreshold: number | null;
   showResponsePrompt: boolean;
   showCompletionModal: boolean;
+  showInstructionsModal: boolean;
   stopReason: StopReason;
   // actions
-  start: () => Promise<void>;
+  start: () => void;
+  startExperiment: () => Promise<void>;
   stop: () => void;
   handleResponse: (choice: 1 | 2) => Promise<void>;
   setShowCompletionModal: (v: boolean) => void;
+  setShowInstructionsModal: (v: boolean) => void;
 }
 
 export const useVSSExperiment = (
-  canvasRef: React.RefObject<HTMLCanvasElement>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
 ): UseVSSExperimentResult => {
   // Fixed stimulus parameters for simplicity
   const FREQ_HZ = 15; // temporal update rate
   const BLOCK_PX = 2; // spatial scale (pixel block size)
-  const INTERVAL_MS = 500;
-  const ISI_MS = 350;
+  const INTERVAL_MS_RANGE: [number, number] = [400, 600]; // jittered interval duration
+  const ISI_MS_RANGE: [number, number] = [250, 450]; // jittered ISI
   // Stop criteria
   const MAX_TRIALS = 80;
   const MAX_REVERSALS = 10;
   const CONVERGENCE_REVERSALS = 6;
   const CONVERGENCE_STDDEV = 2; // percent contrast
+  
+  // Helper for jittered timing
+  const randMs = (lo: number, hi: number) => Math.floor(lo + Math.random() * (hi - lo));
 
   // 2AFC state
   const [running, setRunning] = useState(false);
@@ -52,7 +58,7 @@ export const useVSSExperiment = (
 
   // 2-down/1-up staircase params
   const [contrastPct, setContrastPct] = useState(20); // current level (%), 1..100
-  const STEP_PCT = 5; // fixed step size
+  const [stepPct, setStepPct] = useState(6); // adaptive step size (starts larger, shrinks after reversals)
   const [reversals, setReversals] = useState<number[]>([]);
   const lastDirRef = useRef<number | null>(null); // -1 down (harder), +1 up (easier)
   const [consecutiveCorrect, setConsecutiveCorrect] = useState(0); // for 2-down/1-up
@@ -60,6 +66,7 @@ export const useVSSExperiment = (
   const [showResponsePrompt, setShowResponsePrompt] = useState(false);
   const [currentInterval, setCurrentInterval] = useState<1 | 2 | null>(null);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [stopReason, setStopReason] = useState<StopReason>(null);
 
   const seedRef = useRef<number>(12345);
@@ -72,7 +79,7 @@ export const useVSSExperiment = (
     const cvs = canvasRef.current; if (!cvs) return;
     const ctx = cvs.getContext("2d", { alpha: false });
     if (!ctx) return;
-    ctx.fillStyle = "white";
+    ctx.fillStyle = "rgb(127, 127, 127)"; // mid-gray to eliminate brightness cues
     ctx.fillRect(0, 0, cvs.width, cvs.height);
   }, [canvasRef]);
 
@@ -100,52 +107,67 @@ export const useVSSExperiment = (
     if (!ctx) return 1 as 1 | 2;
     const width = cvs.width, height = cvs.height;
 
-    const drawVisualFrame = (color: string) => {
-      ctx.fillStyle = "white"; ctx.fillRect(0, 0, width, height);
+    // Unified fixation marker (same color for both intervals)
+    const drawVisualFrame = () => {
+      ctx.fillStyle = "rgb(127, 127, 127)"; // mid-gray background
+      ctx.fillRect(0, 0, width, height);
+    };
+
+    const drawFixationDot = () => {
       const dotRadius = Math.max(4, Math.min(8, width * 0.008));
       ctx.beginPath(); ctx.arc(width / 2, height / 2, dotRadius, 0, Math.PI * 2);
-      ctx.fillStyle = color; ctx.fill();
+      ctx.fillStyle = "#333"; // neutral dark fixation point (same for both intervals)
+      ctx.fill();
     };
 
     const maskFlash = async () => {
-      ctx.fillStyle = "#d9d9d9"; ctx.fillRect(0, 0, width, height);
-      ctx.lineWidth = 10; ctx.strokeStyle = "#a3a3a3"; ctx.strokeRect(5, 5, width - 10, height - 10);
-      ctx.beginPath(); ctx.arc(width / 2, height / 2, 4, 0, Math.PI * 2);
-      ctx.fillStyle = "#666"; ctx.fill();
-      await sleep(200);
-      drawBlank(); await sleep(100);
+      // Simple mid-gray blank to avoid afterimages while still providing temporal separation
+      drawBlank();
+      await sleep(300);
     };
 
-    const drawIntervalNoise = async (seedBase: number, cPct: number, color: string) => {
-      drawVisualFrame(color);
+    const drawIntervalNoise = async (seedBase: number, cPct: number, intervalMs: number) => {
       const targetHz = clamp(FREQ_HZ, 1, 60);
       const framePeriod = 1000 / targetHz;
       const inset = 0;
       const bs = Math.max(1, Math.floor(BLOCK_PX));
       const w = Math.max(1, Math.floor((width - 2 * inset) / bs));
       const h = Math.max(1, Math.floor((height - 2 * inset) / bs));
+
+      const drawNoiseFrame = (frameIndex: number) => {
+        drawVisualFrame();
+        const { off, octx, img } = ensureOffscreen(w, h);
+        const rng = mulberry32((seedBase + frameIndex * 29) >>> 0);
+        const c = clamp(cPct / 100, 0, 1);
+        // Zero-mean noise around mid-gray (127.5) to keep constant mean luminance
+        const amp = c * 127.5;
+        for (let p = 0; p < img.data.length; p += 4) {
+          const u = (rng() - 0.5) * 2; // uniform [-1, 1]
+          const px = clamp(127.5 + u * amp, 0, 255);
+          img.data[p] = px; img.data[p + 1] = px; img.data[p + 2] = px; img.data[p + 3] = 255;
+        }
+        octx.putImageData(img, 0, 0);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(off, 0, 0, w, h, inset, inset, width - 2 * inset, height - 2 * inset);
+        // Draw fixation dot AFTER noise so it's always visible
+        drawFixationDot();
+      };
+
+      // Draw first noise frame immediately at interval onset
+      let i = 0;
       let last = performance.now();
-      let elapsed = 0, acc = 0, i = 0;
+      let elapsed = 0, acc = 0;
+      drawNoiseFrame(i++);
+
+      // Continue updating at target frame rate
       await new Promise<void>((resolve) => {
         const step = (t: number) => {
           const dt = t - last; last = t; elapsed += dt; acc += dt;
           if (acc >= framePeriod) {
             acc -= framePeriod;
-            drawVisualFrame(color);
-            const { off, octx, img } = ensureOffscreen(w, h);
-            const rng = mulberry32((seedBase + i * 29) >>> 0);
-            const c = clamp(cPct / 100, 0, 1);
-            for (let p = 0; p < img.data.length; p += 4) {
-              const n = rng();
-              const px = 255 * ((1 - c) + c * n);
-              img.data[p] = px; img.data[p + 1] = px; img.data[p + 2] = px; img.data[p + 3] = 255;
-            }
-            octx.putImageData(img, 0, 0);
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(off, 0, 0, w, h, inset, inset, width - 2 * inset, height - 2 * inset);
-            i++;
+            drawNoiseFrame(i++);
           }
-          if (elapsed >= INTERVAL_MS) return resolve();
+          if (elapsed >= intervalMs) return resolve();
           requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
@@ -155,26 +177,34 @@ export const useVSSExperiment = (
     const which: 1 | 2 = Math.random() < 0.5 ? 1 : 2;
     setCorrectInterval(which);
 
+    // Jittered timings for each trial
+    const intervalMs = randMs(...INTERVAL_MS_RANGE);
+    const isiMs = randMs(...ISI_MS_RANGE);
+
     drawBlank(); await sleep(200);
 
     if (which === 1) {
       setCurrentInterval(1);
-      await drawIntervalNoise(seedRef.current + 101, contrastPct, "#2563eb");
+      await drawIntervalNoise(seedRef.current + 101, contrastPct, intervalMs);
     } else {
       setCurrentInterval(1);
-      drawVisualFrame("#2563eb"); await sleep(INTERVAL_MS);
+      drawVisualFrame(); 
+      drawFixationDot();
+      await sleep(intervalMs);
       setCurrentInterval(null);
     }
 
     await maskFlash();
-    await sleep(Math.floor(Math.random() * 50));
+    await sleep(isiMs);
 
     if (which === 2) {
       setCurrentInterval(2);
-      await drawIntervalNoise(seedRef.current + 303, contrastPct, "#d97706");
+      await drawIntervalNoise(seedRef.current + 303, contrastPct, intervalMs);
     } else {
       setCurrentInterval(2);
-      drawVisualFrame("#d97706"); await sleep(INTERVAL_MS);
+      drawVisualFrame();
+      drawFixationDot();
+      await sleep(intervalMs);
       setCurrentInterval(null);
     }
 
@@ -182,10 +212,15 @@ export const useVSSExperiment = (
     setShowResponsePrompt(true);
     setAwaitingResponse(true);
     return which;
-  }, [BLOCK_PX, FREQ_HZ, INTERVAL_MS, canvasRef, clamp, ensureOffscreen, drawBlank, contrastPct]);
+  }, [BLOCK_PX, FREQ_HZ, INTERVAL_MS_RANGE, ISI_MS_RANGE, canvasRef, ensureOffscreen, drawBlank, contrastPct, randMs]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(() => {
     if (running) return;
+    setShowInstructionsModal(true);
+  }, [running]);
+
+  const startExperiment = useCallback(async () => {
+    setShowInstructionsModal(false);
     setRunning(true);
     setTrialNum(0);
     setStats({ correct: 0, incorrect: 0 });
@@ -195,17 +230,19 @@ export const useVSSExperiment = (
     setShowCompletionModal(false);
     setStopReason(null);
     setContrastPct(20);
+    setStepPct(6); // reset adaptive step size to initial value
     lastDirRef.current = null;
     setConsecutiveCorrect(0); // reset for 2-down/1-up
     drawBlank();
     await present2AFC();
-  }, [drawBlank, present2AFC, running]);
+  }, [drawBlank, present2AFC]);
 
   const stop = useCallback(() => {
     setRunning(false);
     setAwaitingResponse(false);
     setShowResponsePrompt(false);
     setCurrentInterval(null);
+    setShowInstructionsModal(false);
     drawBlank();
   }, [drawBlank]);
 
@@ -240,10 +277,17 @@ export const useVSSExperiment = (
     let next = contrastPct;
     if (dir !== null) {
       if (lastDirRef.current !== null && lastDirRef.current !== dir) {
-        setReversals((r) => [...r, contrastPct]);
+        // Record reversal and adaptively shrink step size
+        setReversals((r) => {
+          const nextR = [...r, contrastPct];
+          // Shrink step size after accumulating reversals for finer threshold estimate
+          if (nextR.length === 2) setStepPct(4);
+          if (nextR.length === 4) setStepPct(2);
+          return nextR;
+        });
       }
       lastDirRef.current = dir;
-      next = clamp(contrastPct + dir * STEP_PCT, 1, 100);
+      next = clamp(contrastPct + dir * stepPct, 1, 100);
       setContrastPct(next);
     }
 
@@ -265,13 +309,13 @@ export const useVSSExperiment = (
       setStopReason(reason);
       setShowCompletionModal(true);
     }
-  }, [awaitingResponse, correctInterval, contrastPct, consecutiveCorrect, drawBlank, present2AFC, reversals, running, trialNum, STEP_PCT]);
+  }, [awaitingResponse, correctInterval, contrastPct, consecutiveCorrect, drawBlank, present2AFC, reversals, running, trialNum, stepPct]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "1") { void handleResponse(1); }
       else if (e.key === "2") { void handleResponse(2); }
-      else if (e.key === " ") { if (!running) void start(); }
+      else if (e.key === " ") { if (!running) start(); }
       else if (e.key === "Escape") { stop(); }
     };
     window.addEventListener("keydown", onKey);
@@ -318,13 +362,15 @@ export const useVSSExperiment = (
     estThreshold,
     showResponsePrompt,
     showCompletionModal,
+    showInstructionsModal,
     stopReason,
     start,
+    startExperiment,
     stop,
     handleResponse,
     setShowCompletionModal,
+    setShowInstructionsModal,
   };
 };
-
 
 
