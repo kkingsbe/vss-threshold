@@ -3,7 +3,7 @@
 import React from "react";
 
 interface VSSCanvasProps {
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
   awaitingResponse: boolean;
   running: boolean;
   currentInterval: 1 | 2 | null;
