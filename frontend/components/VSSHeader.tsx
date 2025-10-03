@@ -21,7 +21,7 @@ export const VSSHeader: React.FC<VSSHeaderProps> = ({
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 flex-shrink-0">
       <div className="flex-1 min-w-0">
         <h1 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900 dark:text-gray-100 leading-tight">
-          Visual Snow Threshold — Demo
+           VSS Test
         </h1>
         <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5 sm:mt-1 leading-relaxed">
           Two quick intervals. Pick which one had the pattern.
