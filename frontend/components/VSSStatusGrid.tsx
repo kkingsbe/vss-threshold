@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import type { ThresholdResult } from "../hooks/useVSSExperiment";
 
 interface VSSStatusGridProps {
   trialNum: number;
@@ -8,9 +9,10 @@ interface VSSStatusGridProps {
   incorrect: number;
   reversalsCount: number;
   estThreshold: number | null;
+  rmsContrast: ThresholdResult | null;
 }
 
-export const VSSStatusGrid: React.FC<VSSStatusGridProps> = ({ trialNum, correct, incorrect, reversalsCount, estThreshold }) => {
+export const VSSStatusGrid: React.FC<VSSStatusGridProps> = ({ trialNum, correct, incorrect, reversalsCount, estThreshold, rmsContrast }) => {
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-2 sm:p-3">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2 sm:gap-3">
@@ -31,8 +33,8 @@ export const VSSStatusGrid: React.FC<VSSStatusGridProps> = ({ trialNum, correct,
           <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{reversalsCount}</div>
         </div>
         <div className="text-center col-span-2 sm:col-span-3 lg:col-span-2">
-          <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Threshold (est.)</div>
-          <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{estThreshold ? `${estThreshold.toFixed(1)}%` : "—"}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 tracking-wide font-medium">Threshold (RMS %; lower = better) at 15 Hz dynamic noise, 2IFC</div>
+          <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{rmsContrast ? `${rmsContrast.rmsPercent.toFixed(2)}%` : "—"}</div>
         </div>
       </div>
     </div>

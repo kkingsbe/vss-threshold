@@ -22,6 +22,7 @@ export const VSSDemo: React.FC = () => {
     stats,
     reversals,
     estThreshold,
+    rmsContrast,
     showResponsePrompt,
     showCompletionModal,
     showInstructionsModal,
@@ -55,6 +56,7 @@ export const VSSDemo: React.FC = () => {
           visible={showCompletionModal}
           stopReason={stopReason}
           estThreshold={estThreshold}
+          rmsContrast={rmsContrast}
           reversalsCount={reversals.length}
           trialNum={trialNum}
           correctCount={stats.correct}
@@ -80,6 +82,7 @@ export const VSSDemo: React.FC = () => {
             incorrect={stats.incorrect}
             reversalsCount={reversals.length}
             estThreshold={estThreshold}
+            rmsContrast={rmsContrast}
           />
           <VSSTips />
         </div>

@@ -10,6 +10,18 @@ export interface ExperimentStats {
   incorrect: number;
 }
 
+// Helper to convert linear step percentage to multiplicative factors (log domain)
+const toMul = (pctStep: number) => {
+  // Symmetric in log domain: down = 1/(1+δ), up = (1+δ)
+  const delta = pctStep / 100;
+  return { up: 1 + delta, down: 1 / (1 + delta) };
+};
+
+export interface ThresholdResult {
+  percentRange: number;
+  rmsPercent: number;
+}
+
 export interface UseVSSExperimentResult {
   // state
   running: boolean;
@@ -19,6 +31,7 @@ export interface UseVSSExperimentResult {
   stats: ExperimentStats;
   reversals: number[];
   estThreshold: number | null;
+  rmsContrast: ThresholdResult | null;
   showResponsePrompt: boolean;
   showCompletionModal: boolean;
   showInstructionsModal: boolean;
@@ -146,6 +159,30 @@ export const useVSSExperiment = (
           const px = clamp(127.5 + u * amp, 0, 255);
           img.data[p] = px; img.data[p + 1] = px; img.data[p + 2] = px; img.data[p + 3] = 255;
         }
+
+        // Equalize RMS per frame to remove luminance cues from sampling variability
+        // Compute mean (should be ~127.5) and SD of the gray channel
+        let sum = 0, sum2 = 0;
+        const n = img.data.length / 4;
+        for (let p = 0; p < img.data.length; p += 4) {
+          const v = img.data[p];
+          sum += v; sum2 += v * v;
+        }
+        const mean = sum / n;
+        const sd = Math.sqrt(sum2 / n - mean * mean) || 1;
+
+        // Rescale to target RMS (c/√3 * 127.5 for uniform noise)
+        const sdTarget = (c / Math.sqrt(3)) * 127.5;
+
+        // Normalize & re-center exactly around 127.5
+        const gain = sdTarget / sd;
+        for (let p = 0; p < img.data.length; p += 4) {
+          const v = img.data[p];
+          const v2 = 127.5 + (v - mean) * gain;
+          const px = clamp(v2, 0, 255);
+          img.data[p] = px; img.data[p + 1] = px; img.data[p + 2] = px; // A stays 255
+        }
+
         octx.putImageData(img, 0, 0);
         ctx.imageSmoothingEnabled = false;
         ctx.drawImage(off, 0, 0, w, h, inset, inset, width - 2 * inset, height - 2 * inset);
@@ -287,7 +324,11 @@ export const useVSSExperiment = (
         });
       }
       lastDirRef.current = dir;
-      next = clamp(contrastPct + dir * stepPct, 1, 100);
+
+      // Use multiplicative steps for symmetric changes in log domain
+      const { up, down } = toMul(stepPct);
+      next = contrastPct * (dir > 0 ? up : down);
+      next = clamp(next, 0.25, 100); // allow lower floor for better dynamic range
       setContrastPct(next);
     }
 
@@ -328,9 +369,22 @@ export const useVSSExperiment = (
   const estThreshold = useMemo(() => {
     if (reversals.length < 4) return null;
     const use = reversals.slice(-6);
-    const m = use.reduce((a, b) => a + b, 0) / use.length;
-    return m;
+    const geo = Math.exp(use.reduce((a, b) => a + Math.log(b), 0) / use.length);
+    return geo;
   }, [reversals]);
+
+  // Compute RMS contrast from uniform noise threshold
+  const rmsContrast = useMemo(() => {
+    if (estThreshold === null) return null;
+    // convert percent-of-range to RMS contrast fraction & %
+    const cFrac = estThreshold / 100;           // percent → fraction
+    const rmsFrac = cFrac / Math.sqrt(3);        // uniform → RMS
+    const rmsPct = rmsFrac * 100;               // for UI
+    return {
+      percentRange: estThreshold,  // legacy metric
+      rmsPercent: +rmsPct.toFixed(2),
+    };
+  }, [estThreshold]);
 
   // Resize canvas to fit container and clear when size changes
   useEffect(() => {
@@ -360,6 +414,7 @@ export const useVSSExperiment = (
     stats,
     reversals,
     estThreshold,
+    rmsContrast,
     showResponsePrompt,
     showCompletionModal,
     showInstructionsModal,

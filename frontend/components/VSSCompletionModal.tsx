@@ -1,12 +1,13 @@
 "use client";
 
 import React from "react";
-import type { StopReason } from "../hooks/useVSSExperiment";
+import type { StopReason, ThresholdResult } from "../hooks/useVSSExperiment";
 
 interface VSSCompletionModalProps {
   visible: boolean;
   stopReason: StopReason;
   estThreshold: number | null;
+  rmsContrast: ThresholdResult | null;
   reversalsCount: number;
   trialNum: number;
   correctCount: number;
@@ -18,6 +19,7 @@ export const VSSCompletionModal: React.FC<VSSCompletionModalProps> = ({
   visible,
   stopReason,
   estThreshold,
+  rmsContrast,
   reversalsCount,
   trialNum,
   correctCount,
@@ -36,9 +38,9 @@ export const VSSCompletionModal: React.FC<VSSCompletionModalProps> = ({
             {stopReason === 'converged' && 'Stopped because the staircase converged.'}
           </p>
           <div className="grid grid-cols-2 gap-4 text-left">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Estimated Threshold</div>
-              <div className="text-xl font-semibold text-blue-600 dark:text-blue-400">{estThreshold ? `${estThreshold.toFixed(1)}%` : '—'}</div>
+            <div className="col-span-2">
+              <div className="text-xs tracking-wide text-gray-500 dark:text-gray-400">Threshold (RMS %; lower = better) at 15 Hz dynamic noise, 2IFC</div>
+              <div className="text-xl font-semibold text-blue-600 dark:text-blue-400 mt-1">{rmsContrast ? `${rmsContrast.rmsPercent.toFixed(2)}%` : '—'}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Reversals</div>
@@ -48,7 +50,7 @@ export const VSSCompletionModal: React.FC<VSSCompletionModalProps> = ({
               <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Trials</div>
               <div className="text-xl font-semibold">{trialNum}</div>
             </div>
-            <div>
+            <div className="col-span-2">
               <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Correct</div>
               <div className="text-xl font-semibold text-green-600 dark:text-green-400">{correctCount}</div>
             </div>
