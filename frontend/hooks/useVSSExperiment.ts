@@ -68,6 +68,7 @@ export interface UseVSSExperimentResult {
   showInstructionsModal: boolean;
   stopReason: StopReason;
   trialData: TrialData[];
+  sessionQCs: QC[];
   // actions
   start: () => void;
   startExperiment: () => Promise<void>;
@@ -114,6 +115,7 @@ export const useVSSExperiment = (
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [stopReason, setStopReason] = useState<StopReason>(null);
   const [trialData, setTrialData] = useState<TrialData[]>([]);
+  const [sessionQCs, setSessionQCs] = useState<QC[]>([]);
 
   const seedRef = useRef<number>(12345);
   // Reusable offscreen buffer for noise generation
@@ -173,7 +175,7 @@ export const useVSSExperiment = (
       await sleep(300);
     };
 
-    const drawIntervalNoise = async (seedBase: number, cPct: number, intervalMs: number) => {
+    const drawIntervalNoise = async (seedBase: number, cPct: number, intervalMs: number): Promise<QC> => {
       const targetHz = clamp(FREQ_HZ, 1, 60);
       const framePeriod = 1000 / targetHz;
       const inset = 0;
@@ -229,7 +231,9 @@ export const useVSSExperiment = (
       const framesPerUpdate = Math.max(1, Math.round(refreshHz / targetHz)); // ≈4 at 60→15
       let frameCount = 0;
       let elapsed = 0;
+      let updateCount = 0;
       drawNoiseFrame(0);
+      updateCount++;
       await new Promise<void>((resolve) => {
         function step(t0: number, tPrev: number) {
           requestAnimationFrame((t) => {
@@ -238,6 +242,7 @@ export const useVSSExperiment = (
             frameCount++;
             if (frameCount % framesPerUpdate === 0) {
               drawNoiseFrame(frameCount / framesPerUpdate);
+              updateCount++;
             }
             if (elapsed >= intervalMs) return resolve();
             step(t0, t);
@@ -245,6 +250,19 @@ export const useVSSExperiment = (
         }
         requestAnimationFrame((t) => step(t, t));
       });
+
+      // Return QC metrics
+      const effectiveHz = updateCount > 1 ? (updateCount - 1) / (elapsed / 1000) : targetHz;
+      return {
+        refreshHz,
+        framesPerUpdate,
+        intendedHz: targetHz,
+        effectiveHz,
+        updates: updateCount,
+        elapsedMs: elapsed,
+        contrastPct: cPct,
+        trialNum: trialNum + 1,
+      };
     };
 
     const which: 1 | 2 = Math.random() < 0.5 ? 1 : 2;
@@ -256,9 +274,10 @@ export const useVSSExperiment = (
 
     drawBlank(); await sleep(200);
 
+    let qc: QC | null = null;
     if (which === 1) {
       setCurrentInterval(1);
-      await drawIntervalNoise(seedRef.current + 101, contrastPct, intervalMs);
+      qc = await drawIntervalNoise(seedRef.current + 101, contrastPct, intervalMs);
     } else {
       setCurrentInterval(1);
       drawVisualFrame(); 
@@ -272,13 +291,18 @@ export const useVSSExperiment = (
 
     if (which === 2) {
       setCurrentInterval(2);
-      await drawIntervalNoise(seedRef.current + 303, contrastPct, intervalMs);
+      qc = await drawIntervalNoise(seedRef.current + 303, contrastPct, intervalMs);
     } else {
       setCurrentInterval(2);
       drawVisualFrame();
       drawFixationDot();
       await sleep(intervalMs);
       setCurrentInterval(null);
+    }
+
+    // Store QC data for this trial
+    if (qc) {
+      setSessionQCs((prev) => [...prev, qc!]);
     }
 
     drawBlank();
@@ -299,6 +323,7 @@ export const useVSSExperiment = (
     setStats({ correct: 0, incorrect: 0 });
     setReversals([]);
     setTrialData([]);
+    setSessionQCs([]);
     setShowResponsePrompt(false);
     setCurrentInterval(null);
     setShowCompletionModal(false);
@@ -481,6 +506,7 @@ export const useVSSExperiment = (
     showInstructionsModal,
     stopReason,
     trialData,
+    sessionQCs,
     start,
     startExperiment,
     stop,
