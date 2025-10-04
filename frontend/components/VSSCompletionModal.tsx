@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { StopReason, ThresholdResult } from "../hooks/useVSSExperiment";
+import type { StopReason, ThresholdResult, QC } from "../hooks/useVSSExperiment";
 
 interface VSSCompletionModalProps {
   visible: boolean;
@@ -11,6 +11,7 @@ interface VSSCompletionModalProps {
   reversalsCount: number;
   trialNum: number;
   correctCount: number;
+  sessionQCs: QC[];
   onClose: () => void;
   onRestart: () => void;
 }
@@ -23,6 +24,7 @@ export const VSSCompletionModal: React.FC<VSSCompletionModalProps> = ({
   reversalsCount,
   trialNum,
   correctCount,
+  sessionQCs,
   onClose,
   onRestart,
 }) => {
@@ -39,8 +41,11 @@ export const VSSCompletionModal: React.FC<VSSCompletionModalProps> = ({
           </p>
           <div className="grid grid-cols-2 gap-4 text-left">
             <div className="col-span-2">
-              <div className="text-xs tracking-wide text-gray-500 dark:text-gray-400">Threshold (RMS %; lower = better) at 15 Hz dynamic noise, 2IFC</div>
-              <div className="text-xl font-semibold text-blue-600 dark:text-blue-400 mt-1">{rmsContrast ? `${rmsContrast.rmsPercent.toFixed(2)}%` : '—'}</div>
+              <div className="text-xs tracking-wide text-gray-500 dark:text-gray-400">Threshold at 15 Hz dynamic noise, 2IFC</div>
+              <div className="text-xl font-semibold text-blue-600 dark:text-blue-400 mt-1">
+                {rmsContrast ? `${rmsContrast.rmsPercent.toFixed(2)}% RMS (legacy ${rmsContrast.percentRange.toFixed(2)}% of range)` : '—'}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Lower = better</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Reversals</div>
@@ -55,6 +60,45 @@ export const VSSCompletionModal: React.FC<VSSCompletionModalProps> = ({
               <div className="text-xl font-semibold text-green-600 dark:text-green-400">{correctCount}</div>
             </div>
           </div>
+          
+          {/* QC Metrics */}
+          {sessionQCs.length > 0 && (
+            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+              <details className="text-left">
+                <summary className="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Quality Control Metrics ({sessionQCs.length} trials)
+                </summary>
+                <div className="mt-2 max-h-48 overflow-y-auto text-xs space-y-1">
+                  <div className="grid grid-cols-6 gap-1 font-semibold text-gray-600 dark:text-gray-400 sticky top-0 bg-white dark:bg-gray-800 pb-1">
+                    <div>Trial</div>
+                    <div>Contrast</div>
+                    <div>RefreshHz</div>
+                    <div>IntendHz</div>
+                    <div>EffectHz</div>
+                    <div>Updates</div>
+                  </div>
+                  {sessionQCs.map((qc, idx) => {
+                    const hzDiff = Math.abs(qc.effectiveHz - qc.intendedHz);
+                    const isGood = hzDiff < 0.5; // within 0.5 Hz is good
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`grid grid-cols-6 gap-1 ${isGood ? 'text-gray-700 dark:text-gray-300' : 'text-orange-600 dark:text-orange-400 font-semibold'}`}
+                      >
+                        <div>{qc.trialNum}</div>
+                        <div>{qc.contrastPct.toFixed(1)}%</div>
+                        <div>{qc.refreshHz.toFixed(0)}</div>
+                        <div>{qc.intendedHz.toFixed(0)}</div>
+                        <div>{qc.effectiveHz.toFixed(1)}</div>
+                        <div>{qc.updates}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            </div>
+          )}
+          
           <div className="mt-6 flex justify-center gap-3">
             <button
               onClick={onClose}

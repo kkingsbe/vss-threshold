@@ -27,6 +27,7 @@ export const VSSDemo: React.FC = () => {
     showCompletionModal,
     showInstructionsModal,
     stopReason,
+    sessionQCs,
     start,
     startExperiment,
     stop,
@@ -60,6 +61,7 @@ export const VSSDemo: React.FC = () => {
           reversalsCount={reversals.length}
           trialNum={trialNum}
           correctCount={stats.correct}
+          sessionQCs={sessionQCs}
           onClose={() => setShowCompletionModal(false)}
           onRestart={() => { setShowCompletionModal(false); void start(); }}
         />

@@ -33,8 +33,11 @@ export const VSSStatusGrid: React.FC<VSSStatusGridProps> = ({ trialNum, correct,
           <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 mt-0.5">{reversalsCount}</div>
         </div>
         <div className="text-center col-span-2 sm:col-span-3 lg:col-span-2">
-          <div className="text-xs text-gray-500 dark:text-gray-400 tracking-wide font-medium">Threshold (RMS %; lower = better) at 15 Hz dynamic noise, 2IFC</div>
-          <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{rmsContrast ? `${rmsContrast.rmsPercent.toFixed(2)}%` : "—"}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 tracking-wide font-medium">Threshold at 15 Hz dynamic noise, 2IFC</div>
+          <div className="text-sm sm:text-base font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+            {rmsContrast ? `${rmsContrast.rmsPercent.toFixed(2)}% RMS (legacy ${rmsContrast.percentRange.toFixed(2)}% of range)` : "—"}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Lower = better</div>
         </div>
       </div>
     </div>

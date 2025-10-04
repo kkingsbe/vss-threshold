@@ -3,12 +3,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clamp, mulberry32, sleep, stddev } from "../lib/utils";
 
+// Measure display refresh rate (do once at app start or first run)
+async function estimateRefreshHz(samples = 60): Promise<number> {
+  return await new Promise<number>((resolve) => {
+    let last = performance.now(), i = 0, sum = 0;
+    function tick(t: number) {
+      sum += (t - last); last = t; i++;
+      if (i >= samples) return resolve(1000 / (sum / i));
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
 export type StopReason = "trials" | "reversals" | "converged" | null;
 
 export interface ExperimentStats {
   correct: number;
   incorrect: number;
 }
+
+export type QC = {
+  refreshHz: number;
+  framesPerUpdate: number;
+  intendedHz: number;
+  effectiveHz: number;
+  updates: number;
+  elapsedMs: number;
+  contrastPct: number;
+  trialNum: number;
+};
 
 // Helper to convert linear step percentage to multiplicative factors (log domain)
 const toMul = (pctStep: number) => {
@@ -20,6 +44,13 @@ const toMul = (pctStep: number) => {
 export interface ThresholdResult {
   percentRange: number;
   rmsPercent: number;
+}
+
+export interface TrialData {
+  trialNum: number;
+  contrastPct: number;
+  rmsPercent: number;
+  correct: boolean;
 }
 
 export interface UseVSSExperimentResult {
@@ -36,6 +67,7 @@ export interface UseVSSExperimentResult {
   showCompletionModal: boolean;
   showInstructionsModal: boolean;
   stopReason: StopReason;
+  trialData: TrialData[];
   // actions
   start: () => void;
   startExperiment: () => Promise<void>;
@@ -81,6 +113,7 @@ export const useVSSExperiment = (
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [stopReason, setStopReason] = useState<StopReason>(null);
+  const [trialData, setTrialData] = useState<TrialData[]>([]);
 
   const seedRef = useRef<number>(12345);
   // Reusable offscreen buffer for noise generation
@@ -122,6 +155,7 @@ export const useVSSExperiment = (
 
     // Unified fixation marker (same color for both intervals)
     const drawVisualFrame = () => {
+      ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = "rgb(127, 127, 127)"; // mid-gray background
       ctx.fillRect(0, 0, width, height);
     };
@@ -190,24 +224,26 @@ export const useVSSExperiment = (
         drawFixationDot();
       };
 
-      // Draw first noise frame immediately at interval onset
-      let i = 0;
-      let last = performance.now();
-      let elapsed = 0, acc = 0;
-      drawNoiseFrame(i++);
-
-      // Continue updating at target frame rate
+      // Lock to exact vsync multiples for true 15 Hz
+      const refreshHz = await estimateRefreshHz();              // e.g., ~60, ~120, ~144
+      const framesPerUpdate = Math.max(1, Math.round(refreshHz / targetHz)); // ≈4 at 60→15
+      let frameCount = 0;
+      let elapsed = 0;
+      drawNoiseFrame(0);
       await new Promise<void>((resolve) => {
-        const step = (t: number) => {
-          const dt = t - last; last = t; elapsed += dt; acc += dt;
-          if (acc >= framePeriod) {
-            acc -= framePeriod;
-            drawNoiseFrame(i++);
-          }
-          if (elapsed >= intervalMs) return resolve();
-          requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
+        function step(t0: number, tPrev: number) {
+          requestAnimationFrame((t) => {
+            const dt = t - tPrev;
+            elapsed += dt;
+            frameCount++;
+            if (frameCount % framesPerUpdate === 0) {
+              drawNoiseFrame(frameCount / framesPerUpdate);
+            }
+            if (elapsed >= intervalMs) return resolve();
+            step(t0, t);
+          });
+        }
+        requestAnimationFrame((t) => step(t, t));
       });
     };
 
@@ -262,6 +298,7 @@ export const useVSSExperiment = (
     setTrialNum(0);
     setStats({ correct: 0, incorrect: 0 });
     setReversals([]);
+    setTrialData([]);
     setShowResponsePrompt(false);
     setCurrentInterval(null);
     setShowCompletionModal(false);
@@ -287,6 +324,18 @@ export const useVSSExperiment = (
     if (!awaitingResponse) return;
     const correct = choice === correctInterval;
     setStats((s) => ({ correct: s.correct + (correct ? 1 : 0), incorrect: s.incorrect + (correct ? 0 : 1) }));
+    
+    // Store trial data for psychometric analysis
+    const cFrac = contrastPct / 100;
+    const rmsFrac = cFrac / Math.sqrt(3);
+    const rmsPct = rmsFrac * 100;
+    setTrialData((prev) => [...prev, {
+      trialNum: trialNum + 1,
+      contrastPct,
+      rmsPercent: +rmsPct.toFixed(2),
+      correct,
+    }]);
+    
     setTrialNum((n) => n + 1);
 
     setShowResponsePrompt(false);
@@ -328,7 +377,7 @@ export const useVSSExperiment = (
       // Use multiplicative steps for symmetric changes in log domain
       const { up, down } = toMul(stepPct);
       next = contrastPct * (dir > 0 ? up : down);
-      next = clamp(next, 0.25, 100); // allow lower floor for better dynamic range
+      next = clamp(next, 0.1, 100); // allow lower floor for better dynamic range
       setContrastPct(next);
     }
 
@@ -336,8 +385,16 @@ export const useVSSExperiment = (
 
     const shouldStopByTrials = (prevTrialNum => prevTrialNum + 1 >= MAX_TRIALS)(trialNum);
     const shouldStopByReversals = (prevReversals => prevReversals.length >= MAX_REVERSALS)(reversals);
-    const recentReversals = reversals.slice(-CONVERGENCE_REVERSALS);
-    const hasConverged = recentReversals.length >= CONVERGENCE_REVERSALS && stddev(recentReversals) <= CONVERGENCE_STDDEV;
+    // Convergence check in log space (to match log-domain staircase)
+    const hasConverged = (() => {
+      const recent = reversals.slice(-CONVERGENCE_REVERSALS);
+      if (recent.length < CONVERGENCE_REVERSALS) return false;
+      const logs = recent.map(Math.log);
+      const mean = logs.reduce((a, b) => a + b, 0) / logs.length;
+      const sd = Math.sqrt(logs.reduce((a, b) => a + (b - mean) ** 2, 0) / logs.length);
+      // pick a log-space tolerance; e.g., 0.02 ≈ 2% multiplicative spread
+      return sd <= 0.02;
+    })();
 
     if (running && !(shouldStopByTrials || shouldStopByReversals || hasConverged)) {
       setTimeout(() => { present2AFC(); }, 400);
@@ -348,9 +405,13 @@ export const useVSSExperiment = (
       drawBlank();
       const reason: StopReason = shouldStopByTrials ? 'trials' : (shouldStopByReversals ? 'reversals' : (hasConverged ? 'converged' : null));
       setStopReason(reason);
+      
+      // Log trial data for psychometric analysis
+      console.log('Trial data for psychometric analysis:', trialData);
+      
       setShowCompletionModal(true);
     }
-  }, [awaitingResponse, correctInterval, contrastPct, consecutiveCorrect, drawBlank, present2AFC, reversals, running, trialNum, stepPct]);
+  }, [awaitingResponse, correctInterval, contrastPct, consecutiveCorrect, drawBlank, present2AFC, reversals, running, trialNum, stepPct, trialData]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -419,6 +480,7 @@ export const useVSSExperiment = (
     showCompletionModal,
     showInstructionsModal,
     stopReason,
+    trialData,
     start,
     startExperiment,
     stop,
