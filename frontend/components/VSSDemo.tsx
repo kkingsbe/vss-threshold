@@ -28,6 +28,7 @@ export const VSSDemo: React.FC = () => {
     showInstructionsModal,
     stopReason,
     sessionQCs,
+    contrastPct,
     start,
     startExperiment,
     stop,
@@ -85,6 +86,7 @@ export const VSSDemo: React.FC = () => {
             reversalsCount={reversals.length}
             estThreshold={estThreshold}
             rmsContrast={rmsContrast}
+            currentContrastPct={contrastPct}
           />
           <VSSTips />
         </div>

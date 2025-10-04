@@ -114,9 +114,43 @@ Research into VSS shows that patients often have:
 
 ---
 
-## 8. Remaining Limitations
+## 8. Further Improvements (v3)
+
+### More Aggressive Staircase (3-down/1-up)
+* Changed from **2-down/1-up** to **3-down/1-up** rule.
+* Now requires **3 consecutive correct responses** before decreasing contrast (making it harder).
+* Still increases contrast after just 1 incorrect response.
+* This addresses the issue where participants with good vision were finding the task too easy for too long.
+* Converges around **~79% accuracy** (vs. ~71% for 2-down/1-up), pushing closer to true threshold faster.
+
+### Larger Initial Steps
+* Starting step size increased from **6%** to **15%** (multiplicative).
+* Enables much faster initial convergence — reaches challenging levels in fewer trials.
+* Each decrease step multiplies contrast by ~0.87 (vs. ~0.94 previously).
+* After 6 correct responses (2 decreases): 15% × 0.87² ≈ **11.3%**.
+* After 12 correct responses (4 decreases): 15% × 0.87⁴ ≈ **8.6%**.
+
+### Slower Step Size Reduction
+* Step size now shrinks after **3 and 6 reversals** (vs. 2 and 4 previously).
+* Sequence: **15% → 8% → 4%** (vs. 6% → 4% → 2%).
+* Keeps larger steps for longer, improving initial speed while maintaining precision near threshold.
+
+### Real-Time Contrast Display
+* Added **"Current"** indicator to status grid showing current contrast level.
+* Allows participants to monitor how the difficulty is progressing.
+* Useful for debugging and understanding staircase behavior.
+
+### Lower Starting Contrast
+* Starting contrast reduced from **20%** to **15%**.
+* Starts closer to expected threshold range for healthy controls.
+* Combined with larger steps, reaches challenging levels much faster.
+
+---
+
+## 9. Remaining Limitations
 
 * Not luminance-calibrated → percentages are relative, not absolute.
 * Few reversals → estimate can still be noisy with high between-session variability.
 * Single temporal frequency (15 Hz) — VSS sensitivity may vary across frequencies.
 * Abrupt onsets may be slightly more detectable than ramped stimuli, but necessary to avoid brightness confounds.
+* 3-down/1-up may still be too conservative for some individuals with exceptionally good vision — could consider 4-down/1-up or adaptive rules.

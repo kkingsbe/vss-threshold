@@ -69,6 +69,7 @@ export interface UseVSSExperimentResult {
   stopReason: StopReason;
   trialData: TrialData[];
   sessionQCs: QC[];
+  contrastPct: number;
   // actions
   start: () => void;
   startExperiment: () => Promise<void>;
@@ -102,12 +103,12 @@ export const useVSSExperiment = (
   const [correctInterval, setCorrectInterval] = useState<1 | 2 | null>(null);
   const [stats, setStats] = useState<ExperimentStats>({ correct: 0, incorrect: 0 });
 
-  // 2-down/1-up staircase params
-  const [contrastPct, setContrastPct] = useState(20); // current level (%), 1..100
-  const [stepPct, setStepPct] = useState(6); // adaptive step size (starts larger, shrinks after reversals)
+  // 3-down/1-up staircase params (more aggressive than 2-down/1-up)
+  const [contrastPct, setContrastPct] = useState(15); // Start lower since many find 20% too easy
+  const [stepPct, setStepPct] = useState(15); // Large initial steps for faster convergence
   const [reversals, setReversals] = useState<number[]>([]);
   const lastDirRef = useRef<number | null>(null); // -1 down (harder), +1 up (easier)
-  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0); // for 2-down/1-up
+  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0); // for 3-down/1-up
 
   const [showResponsePrompt, setShowResponsePrompt] = useState(false);
   const [currentInterval, setCurrentInterval] = useState<1 | 2 | null>(null);
@@ -328,10 +329,10 @@ export const useVSSExperiment = (
     setCurrentInterval(null);
     setShowCompletionModal(false);
     setStopReason(null);
-    setContrastPct(20);
-    setStepPct(6); // reset adaptive step size to initial value
+    setContrastPct(15);
+    setStepPct(15); // reset to large initial step size
     lastDirRef.current = null;
-    setConsecutiveCorrect(0); // reset for 2-down/1-up
+    setConsecutiveCorrect(0); // reset for 3-down/1-up
     drawBlank();
     await present2AFC();
   }, [drawBlank, present2AFC]);
@@ -371,8 +372,8 @@ export const useVSSExperiment = (
     
     if (correct) {
       newConsecutiveCorrect = consecutiveCorrect + 1;
-      if (newConsecutiveCorrect >= 2) {
-        // After 2 consecutive correct: make harder (decrease contrast)
+      if (newConsecutiveCorrect >= 3) {
+        // After 3 consecutive correct: make harder (decrease contrast)
         dir = -1;
         newConsecutiveCorrect = 0;
       }
@@ -392,8 +393,8 @@ export const useVSSExperiment = (
         setReversals((r) => {
           const nextR = [...r, contrastPct];
           // Shrink step size after accumulating reversals for finer threshold estimate
-          if (nextR.length === 2) setStepPct(4);
-          if (nextR.length === 4) setStepPct(2);
+          if (nextR.length === 3) setStepPct(8);
+          if (nextR.length === 6) setStepPct(4);
           return nextR;
         });
       }
@@ -507,6 +508,7 @@ export const useVSSExperiment = (
     stopReason,
     trialData,
     sessionQCs,
+    contrastPct,
     start,
     startExperiment,
     stop,
